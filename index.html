@@ -1,0 +1,126 @@
+<html>
+	<head>
+		<script src="libs/glMatrix-0.9.5.min.js"></script> 
+		<script src="libs/perlin.js"></script> 
+	    <script src="libs/jquery-3.3.1.min.js"></script>
+    	<script src="lib.js"></script>
+    	<script src="code.js"></script>
+		<link rel="stylesheet" type="text/css" href="style.css">
+	</head>
+	<script id="vertexShader" type="x-shader/x-fragment">
+		precision highp float;
+		precision highp int;
+
+		attribute vec2 position;
+
+		uniform float time;
+		uniform int drawMode;
+
+		varying vec2 vertexPosition;
+
+		#include<libs/noise>
+
+		void main(void) { 
+			vertexPosition = position;
+			
+			gl_Position = vec4((vec3(vertexPosition,0.0)*2.0-vec3(1.0, 1.0 , 0.0)), 1.0);
+		}
+
+	</script>
+	<script id="fragmentShader" type="x-shader/x-fragment">
+		precision highp float;
+		precision highp int;
+
+		uniform sampler2D sampler[2];
+		uniform float time;
+		uniform int drawMode;
+
+		varying vec2 vertexPosition;
+
+		#include<libs/noise>
+
+		vec2 charCoords(float n, vec2 coords, float columns){
+			coords *= columns/8.0;
+
+			vec2 intCoords = floor(coords*8.0)/8.0;
+			vec2 remCoords = coords - intCoords;
+			
+			float x = mod(n, 8.0)/8.0;
+			float y = floor(n/8.0)/8.0;
+
+			return vec2(x,y)+remCoords;
+	    }
+
+
+	    vec4 gradient(vec2 coords, float columns, float time, float velocity){
+			float column = floor(coords.x*columns);
+
+
+	    	float grad = mod(coords.y+column/columns, 1.0);
+	    	grad = mod(grad + myNoiseX(column, 0.0, 0.0)- time*velocity, 1.0);
+
+
+	    	return vec4(0.0,grad,0.0, grad);
+		}
+
+		void main(void) {
+			vec2 texCoords = vertexPosition*vec2(1.0,-1.0);
+
+
+			if(drawMode == 0) {
+				float symbolColumns = 8.0;
+				float columns = 64.0;
+				float scale = 8.0;
+				float velocity = 512.0;
+				vec2 intCoords = floor(vertexPosition*columns)/8.0;
+
+				
+				float rainColumn = floor(vertexPosition.x*columns);
+				float rainVelocity = 4.0*(myNoiseX(rainColumn, 0.0, 0.0)+1.0)/2.0;
+				
+				//mediump vec2 rainTexCoordinates = vertexPosition*columns/symbolColumns;
+
+				float randChar = floor(myNoiseX(intCoords.x, intCoords.y, time/velocity)*64.0);
+				mediump vec2 rainTexCoordinates = charCoords(randChar, vertexPosition, columns);
+				
+				float shiftY = rainColumn/columns;
+				//rainTexCoordinates.y -= time*rainVelocity+shiftY;		
+			
+			
+			
+				mediump vec4 sample0 = texture2D(sampler[0], vertexPosition);
+				mediump vec4 sample1 = texture2D(sampler[1], rainTexCoordinates)*gradient(vertexPosition, columns, time, 0.2);
+			
+
+				float factor = myNoiseX(vertexPosition.x/scale, vertexPosition.y/scale, time/velocity);
+				
+				
+				
+				
+				
+				
+				// uncomment
+				factor = 0.0;
+				
+				factor = pow(clamp(factor*8.0,0.0,1.0), 4.0);
+
+				gl_FragColor = vec4(sample0.xyz*(factor)+sample1.xyz*(1.0-factor), 1.0);
+			
+			} else if(drawMode == 1){
+				vec4 tex = texture2D(sampler[0], texCoords);
+				vec3 normal = normalize(tex).xyz;
+				float dotP =  pow(clamp(dot(normalize(vec3(1.0, 1.0, 1.0)), normal), 0.0, 1.0), 4.0); 
+
+				gl_FragColor = texture2D(sampler[1], texCoords+normal.xy*0.1)+vec4(0.0,dotP, 0.0, 0.0)*tex.w;	
+			} else {
+				gl_FragColor = texture2D(sampler[1], vertexPosition)+texture2D(sampler[0], texCoords)*vec4(0.0,1.0,0.0,1.0);	
+			}
+		}
+	</script>
+
+
+
+	<body>
+		<canvas id="visualization" width="1024" height="1024" ></canvas><br>
+	</body>
+</html>
